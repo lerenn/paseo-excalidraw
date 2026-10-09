@@ -68,3 +68,7 @@ paseo plugin logs excalidraw
 `server/runtime.gen.ts` and `runtime-src/fonts.gen.ts` are generated and not committed. Git installs generate them through the `build` commands in `paseo-plugin.json`; directory installs do not run `build`, so run `npm run build` yourself.
 
 Do not enable plugins on, or restart, a daemon you did not intend to change. Test against an isolated daemon with its own `PASEO_HOME` and port.
+
+## License
+
+MIT, see [LICENSE](LICENSE). Excalidraw is also MIT licensed and is bundled into the diagram runtime.

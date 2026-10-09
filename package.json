@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "description": "View and edit Excalidraw diagrams in Paseo, together with your agents.",
+  "license": "MIT",
   "files": [
     "paseo-plugin.json",
     "OVERVIEW.md",
@@ -10,7 +11,8 @@
     "index.server.ts",
     "client/",
     "server/",
-    "shared/"
+    "shared/",
+    "LICENSE"
   ],
   "scripts": {
     "build": "node scripts/build-runtime.mjs",
