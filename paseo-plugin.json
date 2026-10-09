@@ -1,0 +1,12 @@
+{
+  "id": "excalidraw",
+  "name": "Excalidraw",
+  "media": [],
+  "requirements": {
+    "paseo": ">=0.11.2"
+  },
+  "build": [
+    ["npm", "ci"],
+    ["npm", "run", "build"]
+  ]
+}
