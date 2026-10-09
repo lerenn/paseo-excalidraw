@@ -12,6 +12,7 @@
     "client/",
     "server/",
     "shared/",
+    "assets/",
     "LICENSE"
   ],
   "scripts": {

@@ -1,12 +1,25 @@
 {
   "id": "excalidraw",
   "name": "Excalidraw",
-  "media": [],
+  "description": "View and edit Excalidraw diagrams in Paseo, together with your agents.",
+  "icon": "assets/icon.png",
+  "media": [
+    "assets/screenshot-diagram.png",
+    "assets/screenshot-diagram-dark.png",
+    "assets/screenshot-list.png"
+  ],
   "requirements": {
     "paseo": ">=0.11.2"
   },
   "build": [
-    ["npm", "ci"],
-    ["npm", "run", "build"]
+    [
+      "npm",
+      "ci"
+    ],
+    [
+      "npm",
+      "run",
+      "build"
+    ]
   ]
 }
