@@ -20,6 +20,7 @@ type Api = {
   getAppState(): any;
   getFiles(): any;
   updateScene(data: any): void;
+  scrollToContent(target?: readonly any[], opts?: { fitToViewport?: boolean; viewportZoomFactor?: number; animate?: boolean }): void;
   addFiles(files: any[]): void;
   updateLibrary?: unknown;
 };
@@ -54,9 +55,9 @@ async function parseScene(text: string, format: Format): Promise<Parsed> {
   }
   const data = JSON.parse(text || "{}");
   return {
-    // Text written by tools has approximate sizes; refreshDimensions re-measures it with real fonts.
+    // No refreshDimensions here: the fonts are not loaded yet, so measuring now would use a
+    // fallback font and clip text. remeasure() does it once the real fonts are available.
     elements: restoreElements(Array.isArray(data.elements) ? data.elements : [], null, {
-      refreshDimensions: true,
       repairBindings: true,
     }) as any[],
     files: data.files ?? {},
@@ -92,6 +93,7 @@ async function serializeScene(elements: readonly any[], appState: any, files: an
 let api: Api | null = null;
 let theme: "light" | "dark" = "light";
 let readOnly = false;
+let fitted = false;
 let format: Format = "json";
 let lastSentVersion = -1;
 let suppressChange = false;
@@ -113,7 +115,6 @@ function render() {
               viewBackgroundColor: initial.appState.viewBackgroundColor ?? "#ffffff",
               gridSize: initial.appState.gridSize ?? null,
             },
-            scrollToContent: true,
           }
         : undefined,
       theme,
@@ -121,6 +122,15 @@ function render() {
       langCode: "en",
       UIOptions: { canvasActions: { loadScene: false, saveToActiveFile: false, export: false } },
       onChange: (elements: readonly any[]) => {
+        // Excalidraw centres initial content but does not zoom, so a big diagram would open cut
+        // off. Fit it once per load, after the first change event (scene and canvas size known).
+        if (!fitted && api && elements.some((element) => !element.isDeleted)) {
+          fitted = true;
+          const target = elements.filter((element) => !element.isDeleted);
+          requestAnimationFrame(() =>
+            api?.scrollToContent(target, { fitToViewport: true, viewportZoomFactor: 0.9, animate: false }),
+          );
+        }
         if (suppressChange) return;
         const version = getSceneVersion(elements as never);
         if (version === lastSentVersion) return;
@@ -130,6 +140,23 @@ function render() {
     }),
   );
 }
+
+// Text written by tools has approximate sizes. Once a font has loaded, re-measure text with it so
+// boxes fit exactly. Idempotent, and only touches the live scene when a size actually changes.
+function remeasure() {
+  if (!api) return;
+  const current = api.getSceneElementsIncludingDeleted();
+  if (!current.some((element) => element.type === "text" && !element.isDeleted)) return;
+  const fixed = restoreElements(current as never, null, { refreshDimensions: true, repairBindings: true }) as any[];
+  const changed =
+    fixed.length !== current.length ||
+    fixed.some((element, i) => element.width !== current[i]!.width || element.height !== current[i]!.height);
+  if (!changed) return;
+  suppressChange = true;
+  api.updateScene({ elements: fixed });
+  setTimeout(() => (suppressChange = false), 0);
+}
+document.fonts.addEventListener("loadingdone", () => setTimeout(remeasure, 30));
 
 async function emitChanged() {
   timer = null;
@@ -194,6 +221,7 @@ window.addEventListener("message", async (event) => {
         readOnly = message.readOnly ?? false;
         format = message.format;
         initial = await parseScene(message.scene, format);
+        fitted = false;
         lastSentVersion = getSceneVersion(initial.elements as never);
         render();
         break;

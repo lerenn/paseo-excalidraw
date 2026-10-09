@@ -12,6 +12,7 @@ import {
   deleteElements,
   labelOf,
   liveElements,
+  measureText,
   summarize,
   updateElement,
   type Element,
@@ -291,6 +292,27 @@ export const tools: Tool[] = [
         }
         const live = liveElements(scene).filter((element) => element.type !== "arrow");
         const originY = live.length ? Math.max(...live.map((element) => element.y + element.height)) + 100 : 0;
+        // Column pitch = widest node in the column + a gap wide enough for the longest edge label
+        // leaving it, so labels never cover their arrows.
+        const nodeWidth = (node: (typeof args.nodes)[number]) =>
+          Math.max(160, measureText(node.label ?? node.key, 20).width + 32 * (node.kind === "rectangle" || !node.kind ? 1 : 1.5));
+        const columnWidth = new Map<number, number>();
+        for (const node of args.nodes) {
+          const column = depth.get(node.key) ?? 0;
+          columnWidth.set(column, Math.max(columnWidth.get(column) ?? 0, nodeWidth(node)));
+        }
+        const gapAfter = new Map<number, number>();
+        for (const edge of args.edges ?? []) {
+          const column = depth.get(edge.from) ?? 0;
+          const label = edge.label ? measureText(edge.label, 16).width + 60 : 0;
+          gapAfter.set(column, Math.max(gapAfter.get(column) ?? 0, label, 100));
+        }
+        const columnX = new Map<number, number>();
+        let cursor = 0;
+        for (const column of [...columnWidth.keys()].sort((a, b) => a - b)) {
+          columnX.set(column, cursor);
+          cursor += (columnWidth.get(column) ?? 160) + (gapAfter.get(column) ?? 100);
+        }
         const rows = new Map<number, number>();
         const ids = new Map<string, string>();
         const lines: string[] = [];
@@ -301,7 +323,7 @@ export const tools: Tool[] = [
           const shape = addShape(scene, {
             kind: node.kind ?? "rectangle",
             label: node.label ?? node.key,
-            x: column * 280,
+            x: columnX.get(column) ?? 0,
             y: originY + row * 140,
             color: node.color ? strokeColor(node.color) : undefined,
             background: node.background ? backgroundColor(node.background) : undefined,
