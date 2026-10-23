@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -101,6 +101,9 @@ describe("file store", () => {
     // Same size, different bytes, written right away: the content hash must still change.
     const original = readFileSync(path.join(root, "a.excalidraw"), "utf8");
     writeFileSync(path.join(root, "a.excalidraw"), original.replace("excalidraw", "excalidrAw"));
+    // Coarse filesystem clocks can leave mtime unchanged; the stat cache keys on it, so bump it.
+    const later = new Date(Date.now() + 5000);
+    utimesSync(path.join(root, "a.excalidraw"), later, later);
     const changed = await statDiagram(root, "a.excalidraw");
     expect(changed.version).not.toBe(version);
     expect(changed.version).toBe(versionOf(readFileSync(path.join(root, "a.excalidraw"), "utf8")));
