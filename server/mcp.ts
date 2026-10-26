@@ -98,7 +98,7 @@ export async function handleMessage(message: JsonRpcMessage, context: ToolContex
         capabilities: { tools: { listChanged: false } },
         serverInfo: { name: "paseo-excalidraw", version: "0.1.0" },
         instructions:
-          "Create and edit Excalidraw diagrams in this project. Call list_diagrams, then read_diagram to get element ids, then use add_shape, connect, update, delete, align or build_diagram.",
+          "Create and edit Excalidraw diagrams in this project. Call list_diagrams, then read_diagram to get element ids. For freehand sketches or handwriting, use view_diagram on a saved .excalidraw.png whiteboard with a vision-capable model (in Pi codemode, forward the image block with image()). Then use add_shape, connect, update, delete, align or build_diagram.",
       });
     }
     case "ping":
@@ -114,9 +114,9 @@ export async function handleMessage(message: JsonRpcMessage, context: ToolContex
         return reply(message.id, { isError: true, content: [{ type: "text", text: `Invalid arguments: ${describeIssues(parsed.error)}` }] });
       }
       try {
-        const text = await tool.run(parsed.data, context);
+        const result = await tool.run(parsed.data, context);
         console.log(`[excalidraw-mcp] ${tool.name} ok`);
-        return reply(message.id, { content: [{ type: "text", text }] });
+        return reply(message.id, { content: typeof result === "string" ? [{ type: "text", text: result }] : result });
       } catch (error) {
         const expected = error instanceof Error && ["PathError", "SceneError", "ColorError"].includes(error.name);
         console.error(`[excalidraw-mcp] ${tool.name} failed${expected ? "" : `: ${(error as Error)?.stack ?? error}`}`);

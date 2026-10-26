@@ -36,10 +36,19 @@ export class Ci {
     return this.base(source).withExec(["npm", "run", "build"]).stdout()
   }
 
-  /** Typecheck, test and build. Fails on the first failing step. */
+  /** Real browser freehand drawing and PNG image-tool regression. */
+  @func()
+  async browser(@argument({ defaultPath: "/", ignore: ["node_modules", ".git", ".dagger/sdk"] }) source: Directory): Promise<string> {
+    return this.base(source)
+      .withExec(["npx", "playwright", "install", "--with-deps", "chromium", "--only-shell"])
+      .withExec(["npm", "run", "test:browser"])
+      .stdout()
+  }
+
+  /** Typecheck, test, build and browser smoke. Fails on the first failing step. */
   @func()
   async all(@argument({ defaultPath: "/", ignore: ["node_modules", ".git", ".dagger/sdk"] }) source: Directory): Promise<string> {
-    const out = [await this.typecheck(source), await this.test(source), await this.build(source)]
+    const out = [await this.typecheck(source), await this.test(source), await this.build(source), await this.browser(source)]
     return out.join("\n")
   }
 }

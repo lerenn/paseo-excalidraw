@@ -221,7 +221,8 @@ window.addEventListener("message", async (event) => {
         readOnly = message.readOnly ?? false;
         format = message.format;
         initial = await parseScene(message.scene, format);
-        fitted = false;
+        // A blank board must not auto-fit the user's first in-progress stroke.
+        fitted = !initial.elements.some((element) => !element.isDeleted);
         lastSentVersion = getSceneVersion(initial.elements as never);
         render();
         break;

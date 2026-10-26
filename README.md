@@ -4,7 +4,7 @@ View and edit [Excalidraw](https://excalidraw.com) diagrams inside [Paseo](https
 
 - A workspace panel lists the `.excalidraw` files in the workspace, opens them in the real Excalidraw editor and creates new ones.
 - You and agents can edit the same file at once. Changes show up within about a second and are merged with Excalidraw's own element reconciliation.
-- Every new agent gets diagram tools over a local MCP server: `list_diagrams`, `read_diagram`, `create_diagram`, `add_shape`, `add_text`, `connect`, `update`, `delete`, `align` and `build_diagram`.
+- Every new agent gets diagram tools over a local MCP server: `list_diagrams`, `read_diagram`, `view_diagram`, `create_diagram`, `add_shape`, `add_text`, `connect`, `update`, `delete`, `align` and `build_diagram`.
 
 Works with Paseo 0.11.2 or later. The editor runs in the desktop and web apps; on mobile the panel shows a notice.
 
@@ -23,12 +23,43 @@ Paseo 0.11 resolves a bare `owner/repo` through the plugin registry, so GitHub i
 
 Then open a workspace, add a tab, and choose **Excalidraw** (or run "Open Excalidraw diagrams" from the Command Center). The panel declares an Explorer sidebar location as well (not yet tested).
 
-Agents created after the plugin is enabled get the tools automatically, for the Claude, Codex, OpenCode and Copilot providers. Other providers are left untouched, because the daemon refuses to start an agent whose provider has no MCP support once any MCP server is configured. Existing agents keep their saved configuration and do not have them.
+Agents created after the plugin is enabled get the tools automatically, for the Claude, Codex, OpenCode, Copilot and Pi providers. Pi needs a Paseo/Pi runtime that supports MCP injection (current Pi supports streamable HTTP MCP natively); older runtimes may reject MCP configuration. Other providers are left untouched, because the daemon refuses to start an agent whose provider has no MCP support once any MCP server is configured. Existing agents keep their saved configuration and do not have them.
 
 ## Using it
 
 - **Files:** the panel lists `.excalidraw`, `.excalidraw.svg` and `.excalidraw.png` files anywhere in the workspace (not in `node_modules`, `.git`, `dist`, `build`). Type a name such as `docs/architecture` (or `docs/architecture.excalidraw.svg`) and press **New diagram**. The last diagram you opened in a workspace is reopened next time.
 - **Agents:** ask an agent to "draw the request flow in `docs/flow.excalidraw`". Typical tool use is `read_diagram` to get element ids, then `build_diagram` for a whole flowchart, or `add_shape`, `connect`, `update`, `align` for incremental changes.
+
+## Reading hand sketches
+
+Create a whiteboard named, for example, `docs/sketch.excalidraw.png` in the panel, draw with the
+freehand tool, and let it save (PNG saves are debounced by about 1.2 seconds). Ask a **vision-capable**
+agent to "use view_diagram to explain my sketch in docs/sketch.excalidraw.png". The tool returns the
+actual saved PNG as an MCP image, not a textual guess based on stroke coordinates. Handwriting can
+be ambiguous; ask the agent to confirm uncertain details.
+
+`read_diagram` still returns a compact structural summary for all formats. `view_diagram` works
+only on `.excalidraw.png`: JSON and SVG are not rendered by the daemon. PNG whiteboards remain
+editable in the panel, but agents cannot modify image formats. Use plain `.excalidraw` when you
+need agent edits; this release does not provide visual rendering of that format. Images over
+4 MiB or 4096 pixels in either dimension are refused; split large sketches into smaller boards.
+
+Pi's default MCP exposure is codemode. To make an image visible to the model, forward the returned
+image block, rather than printing its base64 data:
+
+```js
+const result = await tools.mcp__excalidraw__view_diagram({
+  path: "docs/sketch.excalidraw.png",
+});
+for (const block of result.content ?? []) {
+  if (block.type === "image") image(block);
+  else if (block.type === "text") text(block.text);
+}
+```
+
+No OCR service, daemon-side browser renderer, or extra model is installed. Images stay on the daemon until
+an agent reads them; the agent's configured model provider then receives the image, just as it
+receives diagram text. The PNG includes its embedded editable scene. A text-only model cannot interpret the image.
 
 ## File formats
 
@@ -36,7 +67,7 @@ Agents created after the plugin is enabled get the tools automatically, for the 
 | --- | --- | --- |
 | `.excalidraw` (JSON) | create, open, edit | list, read, edit |
 | `.excalidraw.svg` | create, open, edit (saved as an SVG with the scene embedded) | list, read |
-| `.excalidraw.png` | create, open, edit (saved as a PNG with the scene embedded) | list, read |
+| `.excalidraw.png` | create, open, edit (saved as a PNG with the scene embedded) | list, read, view image |
 
 Image diagrams are exported by Excalidraw itself inside the iframe (`exportToSvg` / `exportToBlob` with "embed scene"; `loadFromBlob` reads them back). The daemon cannot render pictures, so it only decodes the embedded scene for agents and refuses server-side edits to images instead of leaving a stale picture. Images embed live elements only, so unlike the JSON format they carry no tombstones: a deletion made during a concurrent edit of the same image can be resurrected by the merge. Saving an image re-exports it, so it is debounced longer (about 1.2 s) than JSON (0.35 s).
 
@@ -59,6 +90,8 @@ npm install
 npm run typecheck     # also builds the iframe runtime if it is missing
 npm run build         # rebuild server/runtime.gen.ts after changing runtime-src/
 npm test              # server-side tests: real files and real HTTP, no mocks
+npx playwright install chromium --with-deps  # browser-test VM setup only
+npm run test:browser   # real freehand drawing -> PNG -> MCP image; run in a disposable VM
 
 paseo plugin install "$PWD"      # directory install; run `npm run build` first
 paseo plugin reload excalidraw   # after edits

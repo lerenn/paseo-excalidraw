@@ -4,6 +4,8 @@ import path from "node:path";
 import http from "node:http";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { cwdFromKey, keyFor, startMcpServer, type McpEndpoint } from "./mcp";
+import { MAX_IMAGE_BYTES, MAX_IMAGE_DIMENSION } from "./images";
+import { versionOf } from "./files";
 
 let base: string;
 let workspace: string;
@@ -49,7 +51,7 @@ describe("protocol", () => {
     expect(notification.status).toBe(202);
     const list = await rpc(url, "tools/list");
     const names = list.body.result.tools.map((tool: any) => tool.name);
-    expect(names).toEqual(expect.arrayContaining(["list_diagrams", "read_diagram", "create_diagram", "add_shape", "add_text", "connect", "update", "delete", "align"]));
+    expect(names).toEqual(expect.arrayContaining(["list_diagrams", "read_diagram", "view_diagram", "create_diagram", "add_shape", "add_text", "connect", "update", "delete", "align"]));
     const addShape = list.body.result.tools.find((tool: any) => tool.name === "add_shape");
     expect(addShape.inputSchema.type).toBe("object");
     expect(addShape.inputSchema.properties.kind.enum).toEqual(["rectangle", "ellipse", "diamond"]);
@@ -189,6 +191,61 @@ describe("tools edit real files", () => {
 });
 
 describe("image diagrams", () => {
+  it.each(["exported.excalidraw.png", "hand-sketch.excalidraw.png"])("returns actual PNG image content and saved version without modifying %s", async (fixtureName) => {
+    const fixture = readFileSync(path.join(__dirname, "fixtures", fixtureName));
+    const file = path.join(workspace, "sketch.excalidraw.png");
+    writeFileSync(file, fixture);
+    const { body } = await rpc(endpoint.urlFor(workspace), "tools/call", {
+      name: "view_diagram", arguments: { path: "sketch.excalidraw.png" },
+    });
+    expect(body.result.isError).toBeUndefined();
+    expect(body.result.content[0]).toMatchObject({ type: "text", text: expect.stringContaining(`Saved whiteboard: sketch.excalidraw.png (version ${versionOf(fixture)})`) });
+    expect(body.result.content[1]).toEqual({ type: "image", mimeType: "image/png", data: fixture.toString("base64") });
+    expect(readFileSync(file)).toEqual(fixture);
+  });
+
+  it("rejects non-PNG formats, missing files, malformed PNGs and oversized images", async () => {
+    for (const file of ["drawing", "drawing.excalidraw.svg"]) {
+      const result = await call("view_diagram", { path: file });
+      expect(result.isError).toBe(true);
+      expect(result.text).toContain("requires a .excalidraw.png");
+    }
+    expect((await call("view_diagram", { path: "missing.excalidraw.png" })).text).toMatch(/not found/i);
+    writeFileSync(path.join(workspace, "bad.excalidraw.png"), "not an image");
+    expect((await call("view_diagram", { path: "bad.excalidraw.png" })).text).toContain("Not a PNG");
+    writeFileSync(path.join(workspace, "large.excalidraw.png"), Buffer.alloc(MAX_IMAGE_BYTES + 1));
+    expect((await call("view_diagram", { path: "large.excalidraw.png" })).text).toContain("exceeds 4 MiB");
+    const fixture = readFileSync(path.join(__dirname, "fixtures", "exported.excalidraw.png"));
+    for (const offset of [16, 20]) {
+      for (const dimension of [0, MAX_IMAGE_DIMENSION + 1]) {
+        const bytes = Buffer.from(fixture);
+        bytes.writeUInt32BE(dimension, offset);
+        writeFileSync(path.join(workspace, "wide.excalidraw.png"), bytes);
+        expect((await call("view_diagram", { path: "wide.excalidraw.png" })).text).toContain("4096 pixels");
+      }
+    }
+    for (const bytes of [fixture.subarray(0, 33), fixture.subarray(0, -1), fixture.subarray(0, -12)]) {
+      writeFileSync(path.join(workspace, "truncated.excalidraw.png"), bytes);
+      const result = await call("view_diagram", { path: "truncated.excalidraw.png" });
+      expect(result.isError).toBe(true);
+      expect(result.text).toContain("truncated or missing pixel data");
+    }
+  });
+
+  it("does not expose images outside the workspace or another agent's directory", async () => {
+    const outside = path.join(base, "outside");
+    mkdirSync(outside);
+    copyFileSync(path.join(__dirname, "fixtures", "exported.excalidraw.png"), path.join(outside, "private.excalidraw.png"));
+    symlinkSync(outside, path.join(workspace, "link"));
+    for (const file of ["../outside/private.excalidraw.png", path.join(outside, "private.excalidraw.png"), "link/private.excalidraw.png"]) {
+      expect((await call("view_diagram", { path: file })).isError, file).toBe(true);
+    }
+    const second = path.join(base, "second");
+    mkdirSync(second);
+    copyFileSync(path.join(__dirname, "fixtures", "exported.excalidraw.png"), path.join(workspace, "mine.excalidraw.png"));
+    expect((await call("view_diagram", { path: "mine.excalidraw.png" }, endpoint.urlFor(second))).isError).toBe(true);
+  });
+
   it("agents can list and read .excalidraw.svg/.png but not edit them", async () => {
     copyFileSync(path.join(__dirname, "fixtures", "exported.excalidraw.svg"), path.join(workspace, "pic.excalidraw.svg"));
     copyFileSync(path.join(__dirname, "fixtures", "exported.excalidraw.png"), path.join(workspace, "pic.excalidraw.png"));
