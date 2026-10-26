@@ -6,7 +6,9 @@
 const MCP_PROVIDERS = new Set(["claude", "codex", "opencode", "copilot"]);
 
 /** `provider` may carry a model suffix such as "codex/gpt-5.5". */
-export function providerSupportsMcp(provider: string | undefined): boolean {
+export function providerSupportsMcp(provider: string | undefined, enablePiMcp = false): boolean {
   if (!provider) return false;
-  return MCP_PROVIDERS.has(provider.split("/")[0]!.trim().toLowerCase());
+  const name = provider.split("/")[0]!.trim().toLowerCase();
+  // Pi support depends on its installed runtime; never break agent creation by opting in silently.
+  return MCP_PROVIDERS.has(name) || (name === "pi" && enablePiMcp);
 }
