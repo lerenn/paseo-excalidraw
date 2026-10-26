@@ -1,3 +1,4 @@
+import { diagramFormat } from "../shared/formats";
 import { readDiagram } from "./files";
 import { isPng } from "./embedded";
 import { PathError } from "./paths";
@@ -7,13 +8,11 @@ export const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 export const MAX_IMAGE_DIMENSION = 4096;
 
 export async function readDiagramImage(root: string, relative: string) {
-  const image = await readDiagram(root, relative);
-  if (image.encoding !== "base64") throw new PathError("Visual reading requires a .excalidraw.png whiteboard");
-  if (image.content.length > 4 * Math.ceil(MAX_IMAGE_BYTES / 3)) {
-    throw new PathError("Whiteboard image exceeds 4 MiB; split it into smaller whiteboards");
+  if (diagramFormat(relative) !== "png") {
+    throw new PathError("Visual reading requires a .excalidraw.png whiteboard. Create one in the Paseo panel, or use read_diagram for a structural summary.");
   }
+  const image = await readDiagram(root, relative, MAX_IMAGE_BYTES);
   const bytes = Buffer.from(image.content, "base64");
-  if (bytes.length > MAX_IMAGE_BYTES) throw new PathError("Whiteboard image exceeds 4 MiB; split it into smaller whiteboards");
   if (!isPng(bytes) || bytes.length < 33 || bytes.readUInt32BE(8) !== 13 || bytes.toString("ascii", 12, 16) !== "IHDR") {
     throw new PathError("Not a PNG image");
   }

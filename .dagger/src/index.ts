@@ -39,8 +39,16 @@ export class Ci {
   /** Real browser freehand drawing and PNG image-tool regression. */
   @func()
   async browser(@argument({ defaultPath: "/", ignore: ["node_modules", ".git", ".dagger/sdk"] }) source: Directory): Promise<string> {
-    return this.base(source)
-      .withExec(["npx", "playwright", "install", "--with-deps", "chromium", "--only-shell"])
+    const version = JSON.parse(await source.file("package.json").contents()).devDependencies.playwright
+    if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error("Pin an exact Playwright version in package.json")
+    const node = dag.container().from("node:22-slim")
+    // Install browser/system dependencies before copying source, so code edits reuse this layer.
+    return node
+      .withMountedCache("/root/.npm", dag.cacheVolume("npm"))
+      .withExec(["npx", "--yes", `playwright@${version}`, "install", "--with-deps", "chromium", "--only-shell"])
+      .withDirectory("/src", source)
+      .withWorkdir("/src")
+      .withExec(["npm", "ci", "--no-audit", "--no-fund"])
       .withExec(["npm", "run", "test:browser"])
       .stdout()
   }

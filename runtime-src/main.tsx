@@ -178,6 +178,8 @@ async function applyRemote(text: string) {
   const merged = reconcileElements(local as never, remote.elements as never, api.getAppState());
   const files = Object.values(remote.files ?? {}) as any[];
   if (files.length) api.addFiles(files);
+  // Fit the first remote population of an empty board, but never interrupt a local stroke.
+  if (!local.some((element) => !element.isDeleted) && merged.some((element) => !element.isDeleted)) fitted = false;
   suppressChange = true;
   api.updateScene({ elements: merged });
   lastSentVersion = getSceneVersion(merged as never);

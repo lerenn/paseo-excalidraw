@@ -19,7 +19,7 @@
     "build": "node scripts/build-runtime.mjs",
     "typecheck": "node scripts/build-runtime.mjs --if-missing && tsc --noEmit",
     "test": "vitest run --config scripts/vitest.config.mjs",
-    "test:browser": "npm run build && node scripts/sketch-smoke.mjs"
+    "test:browser": "npm run build && node scripts/sketch-smoke.mjs && node scripts/sketch-smoke.mjs --scale=2"
   },
   "devDependencies": {
     "@excalidraw/excalidraw": "0.18.1",

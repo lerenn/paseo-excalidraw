@@ -214,7 +214,7 @@ describe("image diagrams", () => {
     writeFileSync(path.join(workspace, "bad.excalidraw.png"), "not an image");
     expect((await call("view_diagram", { path: "bad.excalidraw.png" })).text).toContain("Not a PNG");
     writeFileSync(path.join(workspace, "large.excalidraw.png"), Buffer.alloc(MAX_IMAGE_BYTES + 1));
-    expect((await call("view_diagram", { path: "large.excalidraw.png" })).text).toContain("exceeds 4 MiB");
+    expect((await call("view_diagram", { path: "large.excalidraw.png" })).text).toContain("limit 4 MiB");
     const fixture = readFileSync(path.join(__dirname, "fixtures", "exported.excalidraw.png"));
     for (const offset of [16, 20]) {
       for (const dimension of [0, MAX_IMAGE_DIMENSION + 1]) {

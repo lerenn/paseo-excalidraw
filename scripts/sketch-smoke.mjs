@@ -11,6 +11,7 @@ import { chromium } from "playwright";
 const root = fileURLToPath(new URL("..", import.meta.url));
 const temporary = mkdtempSync(path.join(tmpdir(), "excalidraw-sketch-"));
 const previousHome = process.env.PASEO_HOME;
+const scale = process.argv.includes("--scale=2") ? 2 : 1;
 let browser;
 let endpoint;
 try {
@@ -24,11 +25,11 @@ try {
   const empty = emptyPng(JSON.stringify({ type: "excalidraw", version: 2, elements: [], appState: { viewBackgroundColor: "#ffffff" }, files: {} })).toString("base64");
   browser = await chromium.launch({ headless: true });
   const errors = [];
-  async function openBoard(png) {
-    const page = await browser.newPage({ viewport: { width: 1100, height: 900 } });
+  async function openBoard(payload, format = "png") {
+    const page = await browser.newPage({ viewport: { width: 1100, height: 900 }, deviceScaleFactor: scale });
     page.on("pageerror", error => errors.push(String(error)));
     await page.setContent(`<html><body style="margin:0"><iframe sandbox="allow-scripts allow-downloads" style="width:1100px;height:900px;border:0"></iframe><script>
-    window.events=[]; window.addEventListener('message', e=>{window.events.push(e.data); if(e.data.type==='ready') document.querySelector('iframe').contentWindow.postMessage({type:'load',scene:${JSON.stringify(png)},format:'png',theme:'light'},'*'); });
+    window.events=[]; window.addEventListener('message', e=>{window.events.push(e.data); if(e.data.type==='ready') document.querySelector('iframe').contentWindow.postMessage({type:'load',scene:${JSON.stringify(payload)},format:${JSON.stringify(format)},theme:'light'},'*'); });
     document.querySelector('iframe').srcdoc=${JSON.stringify(runtimeHtml).replaceAll("</script", "<\\/script")};
   </script></body></html>`);
     await page.frameLocator("iframe").locator("canvas").first().waitFor({ state: "visible", timeout: 30000 });
@@ -37,12 +38,14 @@ try {
   const page = await openBoard(empty);
   await page.mouse.click(750, 650);
   await page.keyboard.press("p");
-  // A lightbulb drawn with the actual freehand tool, without text or prebuilt shapes.
+  // A lightbulb and handwritten HI, using freehand strokes only (no text or prebuilt shapes).
   const strokes = [
     [[450,500],[449,476],[432,456],[416,429],[411,400],[417,373],[433,350],[457,337],[484,333],[511,338],[534,352],[549,373],[555,400],[550,427],[535,452],[516,475],[515,500],[450,500]],
     [[449,513],[517,513]], [[454,527],[512,527]], [[464,540],[504,540]],
     [[480,305],[480,280]], [[405,328],[386,306]], [[369,395],[340,395]],
     [[559,329],[582,306]], [[591,395],[619,395]],
+    [[660,350],[660,440]], [[710,350],[710,440]], [[660,395],[710,395]],
+    [[740,350],[740,440]], [[725,350],[755,350]], [[725,440],[755,440]],
   ];
   for (const points of strokes) {
     await page.mouse.move(...points[0]);
@@ -84,6 +87,15 @@ try {
     const label = button.textContent.trim();
     return /^\d+%$/.test(label) && parseInt(label, 10) < 100;
   }), null, { timeout: 10000 });
+  const remoteBoard = await openBoard(JSON.stringify({ ...scene, elements: [] }), "json");
+  await remoteBoard.evaluate(payload => document.querySelector("iframe").contentWindow.postMessage({
+    type: "remote", scene: payload, format: "json",
+  }, "*"), JSON.stringify(enlarged));
+  const remoteFrame = remoteBoard.frames().find(frame => frame.parentFrame());
+  await remoteFrame.waitForFunction(() => [...document.querySelectorAll("button")].some(button => {
+    const label = button.textContent.trim();
+    return /^\d+%$/.test(label) && parseInt(label, 10) < 100;
+  }), null, { timeout: 10000 });
   assert.deepEqual(errors, []);
   const file = path.join(temporary, "hand-sketch.excalidraw.png");
   writeFileSync(file, bytes);
@@ -102,7 +114,7 @@ try {
     writeFileSync(path.join(process.env.SKETCH_EVIDENCE_DIR, "hand-sketch.excalidraw.png"), bytes);
     await page.screenshot({ path: path.join(process.env.SKETCH_EVIDENCE_DIR, "editor.png") });
   }
-  console.log(`PASS ${process.platform}/${process.arch}: 9 freehand strokes -> saved ${bytes.readUInt32BE(16)}x${bytes.readUInt32BE(20)} PNG (${bytes.length} bytes) -> native MCP image`);
+  console.log(`PASS ${process.platform}/${process.arch} ${scale}x: ${strokes.length} freehand strokes -> saved ${bytes.readUInt32BE(16)}x${bytes.readUInt32BE(20)} PNG (${bytes.length} bytes) -> native MCP image`);
 } finally {
   try {
     await endpoint?.close();

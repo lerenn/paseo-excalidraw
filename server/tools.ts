@@ -1,7 +1,7 @@
 import path from "node:path";
 import { z } from "zod";
 import { backgroundColor, strokeColor } from "./colors";
-import { diagramFormat, withDiagramExtension } from "../shared/formats";
+import { withDiagramExtension } from "../shared/formats";
 import { readDiagramImage } from "./images";
 import { PathError } from "./paths";
 import { createDiagram, listDiagrams, mutateDiagram, readDiagramScene } from "./files";
@@ -108,13 +108,10 @@ export const tools: Tool[] = [
   define({
     name: "view_diagram",
     description:
-      "View a saved .excalidraw.png whiteboard as an image, including freehand sketches and handwriting. Requires a vision-capable model. In Pi codemode, forward each returned image block with image(block), not text(result). Create/open a .excalidraw.png file in the Paseo panel and wait for it to save. JSON and SVG are summary-only; use read_diagram for those. Does not modify files.",
+      "View a saved .excalidraw.png whiteboard as an image, including freehand strokes. Interpretation of handwriting depends on the model and is not guaranteed. Requires a vision-capable model. With Pi built-in MCP/codemode, forward each returned image block with image(block), not text(result). Create/open a .excalidraw.png file in the Paseo panel and wait for it to save. JSON and SVG are summary-only; use read_diagram for those. Does not modify files.",
     schema: z.object({ path: diagramPath }),
     async run({ path: file }, context) {
       const relative = normalizeDiagramPath(context.root, file);
-      if (diagramFormat(relative) !== "png") {
-        throw new PathError("Visual reading requires a .excalidraw.png whiteboard. Create one in the Paseo panel, or use read_diagram for a structural summary.");
-      }
       const image = await readDiagramImage(context.root, relative);
       return [
         { type: "text", text: `Saved whiteboard: ${relative} (version ${image.version}). Interpret the image; handwriting may be ambiguous. Ask the user rather than guessing unclear details.` },
