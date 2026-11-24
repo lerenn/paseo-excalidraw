@@ -73,12 +73,14 @@ export function withFileLock<T>(key: string, task: () => Promise<T>): Promise<T>
   return next;
 }
 
-async function readIfExists(absolute: string): Promise<Buffer | null> {
+async function readIfExists(absolute: string, maxBytes = MAX_FILE_BYTES): Promise<Buffer | null> {
   try {
     const stat = await fs.stat(absolute);
     if (!stat.isFile()) throw new PathError("Not a file");
-    if (stat.size > MAX_FILE_BYTES) throw new PathError("File is too large");
-    return await fs.readFile(absolute);
+    if (stat.size > maxBytes) throw new PathError(`File is too large (limit ${maxBytes / 1024 / 1024} MiB); use a smaller diagram`);
+    const bytes = await fs.readFile(absolute);
+    if (bytes.length > maxBytes) throw new PathError(`File is too large (limit ${maxBytes / 1024 / 1024} MiB); use a smaller diagram`);
+    return bytes;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw error;
@@ -139,9 +141,10 @@ export async function listDiagrams(root: string): Promise<DiagramListing> {
 export async function readDiagram(
   root: string,
   relative: string,
+  maxBytes = MAX_FILE_BYTES,
 ): Promise<{ content: string; encoding: Encoding; version: string }> {
   const absolute = await resolveDiagramPath(root, relative);
-  const bytes = await readIfExists(absolute);
+  const bytes = await readIfExists(absolute, Math.min(maxBytes, MAX_FILE_BYTES));
   if (bytes === null) throw new PathError(`File not found: ${relative}`);
   const encoding = encodingOf(formatOfPath(relative));
   return { content: bytes.toString(encoding), encoding, version: versionOf(bytes) };

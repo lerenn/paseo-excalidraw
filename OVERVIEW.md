@@ -17,6 +17,8 @@ Ask an agent: "draw the request flow in `docs/request-flow.excalidraw`". It call
 ## Get started
 
 - Enable plugins in Paseo (Settings → Plugins), then add a tab in a workspace and choose **Excalidraw**.
+- `view_diagram` returns the saved image of a `.excalidraw.png` whiteboard (max 4 MiB, 4096 px per side) so vision-capable models can read freehand sketches; the image is sent to the agent's model provider and handwriting accuracy depends on the model.
+- Pi agents are off by default: enable them under the plugin's Agent tools settings only after verifying Pi MCP support on that host, since an incompatible runtime can block new Pi agents while enabled.
 - Ask an agent to draw something. Agents created after the plugin is enabled get the tools automatically; older ones do not.
 - Read the [README](https://github.com/lerenn/paseo-excalidraw#readme) for the file formats and how it works.
 

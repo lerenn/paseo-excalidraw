@@ -2,6 +2,7 @@ import path from "node:path";
 import { z } from "zod";
 import { backgroundColor, strokeColor } from "./colors";
 import { withDiagramExtension } from "../shared/formats";
+import { readDiagramImage } from "./images";
 import { PathError } from "./paths";
 import { createDiagram, listDiagrams, mutateDiagram, readDiagramScene } from "./files";
 import {
@@ -24,11 +25,13 @@ export interface ToolContext {
   root: string;
 }
 
+export type ToolContent = { type: "text"; text: string } | { type: "image"; data: string; mimeType: "image/png" };
+
 export interface Tool<Schema extends z.ZodObject = z.ZodObject> {
   name: string;
   description: string;
   schema: Schema;
-  run(args: z.output<Schema>, context: ToolContext): Promise<string>;
+  run(args: z.output<Schema>, context: ToolContext): Promise<string | ToolContent[]>;
 }
 
 function define<Schema extends z.ZodObject>(tool: Tool<Schema>): Tool {
@@ -95,11 +98,25 @@ export const tools: Tool[] = [
   define({
     name: "read_diagram",
     description:
-      "Compact summary of a diagram: one line per shape with its id, label, position and size, and one line per arrow. Use the ids with the other tools.",
+      "Compact structural summary: ids, labels, positions, sizes and arrows. Does not interpret freehand strokes or handwriting; use view_diagram on a .excalidraw.png whiteboard for visual understanding.",
     schema: z.object({ path: diagramPath }),
     async run({ path: file }, context) {
       const scene = await readDiagramScene(context.root, normalizeDiagramPath(context.root, file));
       return summarize(JSON.parse(scene) as Scene);
+    },
+  }),
+  define({
+    name: "view_diagram",
+    description:
+      "View a saved .excalidraw.png whiteboard as an image, including freehand strokes. Interpretation of handwriting depends on the model and is not guaranteed. Requires a vision-capable model. With Pi built-in MCP/codemode, forward each returned image block with image(block), not text(result). Create/open a .excalidraw.png file in the Paseo panel and wait for it to save. JSON and SVG are summary-only; use read_diagram for those. Does not modify files.",
+    schema: z.object({ path: diagramPath }),
+    async run({ path: file }, context) {
+      const relative = normalizeDiagramPath(context.root, file);
+      const image = await readDiagramImage(context.root, relative);
+      return [
+        { type: "text", text: `Saved whiteboard: ${relative} (version ${image.version}). Interpret the image; handwriting may be ambiguous. Ask the user rather than guessing unclear details.` },
+        { type: "image", data: image.content, mimeType: "image/png" },
+      ];
     },
   }),
   define({

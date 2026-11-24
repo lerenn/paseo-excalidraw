@@ -1,7 +1,7 @@
 import type { PluginServerContext } from "@getpaseo/plugin/server";
 import { startMcpServer } from "./server/mcp";
 import { providerSupportsMcp } from "./server/providers";
-import { diagramSettings } from "./shared/settings";
+import { agentSettings, diagramSettings } from "./shared/settings";
 import {
   createFileRpc,
   listFilesRpc,
@@ -23,6 +23,7 @@ import {
 
 export default function contribute(server: PluginServerContext) {
   server.registerSettings(diagramSettings);
+  const preferences = server.registerSettings(agentSettings);
   server.handle(listFilesRpc, listFiles);
   server.handle(statFileRpc, statFile);
   server.handle(readFileRpc, readFile);
@@ -36,8 +37,12 @@ export default function contribute(server: PluginServerContext) {
   mcp.catch((error) => console.error(`[excalidraw] MCP server failed to start: ${error?.message ?? error}`));
   server.before("agent.create", async ({ request }) => {
     const cwd = request.config.cwd;
-    if (!cwd || !providerSupportsMcp(request.config.provider) || request.config.mcpServers?.excalidraw) return undefined;
+    if (!cwd || request.config.mcpServers?.excalidraw || !providerSupportsMcp(request.config.provider, true)) return undefined;
     try {
+      if (!providerSupportsMcp(request.config.provider)) {
+        const settings = await preferences.read();
+        if (settings.status !== "ready" || !settings.values.enablePiMcp) return undefined;
+      }
       const endpoint = await mcp;
       return {
         ...request,
