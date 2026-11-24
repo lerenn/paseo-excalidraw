@@ -1,7 +1,7 @@
 {
   "name": "paseo-excalidraw",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "View and edit Excalidraw diagrams in Paseo, together with your agents.",
   "license": "MIT",
   "files": [
