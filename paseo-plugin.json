@@ -2,7 +2,7 @@
   "id": "excalidraw",
   "name": "Excalidraw",
   "description": "View and edit Excalidraw diagrams in Paseo, together with your agents.",
-  "icon": "assets/icon.png",
+  "icon": "favicon.png",
   "media": [
     "assets/screenshot-diagram.png",
     "assets/screenshot-diagram-dark.png",
