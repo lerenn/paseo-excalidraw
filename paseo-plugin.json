@@ -4,6 +4,7 @@
   "description": "View and edit Excalidraw diagrams in Paseo, together with your agents.",
   "icon": "favicon.png",
   "media": [
+    "assets/card.png",
     "assets/screenshot-diagram.png",
     "assets/screenshot-diagram-dark.png",
     "assets/screenshot-list.png"
